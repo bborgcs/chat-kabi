@@ -16,30 +16,34 @@ export default function ChatTela({ chat }) {
   const [mensagens, setMensagens] = useState([]);
   const [texto, setTexto] = useState("");
 
-  useEffect(() => {
-    socket.on("connect", () => {
-    console.log("✅ Conectado ao servidor:", socket.id);
-  });
+  const nomeUsuario = localStorage.getItem("nomeUsuario") || "Você";
 
-  socket.on("connect_error", (err) => {
-    console.error("❌ Erro de conexão:", err);
-  });
+  useEffect(() => {
+    // Quando conectar, registra o nome do usuário
+    socket.on("connect", () => {
+      console.log("✅ Conectado ao servidor:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("❌ Erro de conexão:", err);
+    });
+
+    const nomeUsuario = localStorage.getItem("nomeUsuario") || "Você";
+    socket.emit("registrarUsuario", nomeUsuario);
     socket.emit("entrarSala", salaId);
 
+    
     socket.on("mensagem", (data) => {
       setMensagens((prev) => [...prev, data]);
     });
 
+    // Limpeza quando o componente sair
     return () => {
       socket.emit("sairSala", salaId);
       socket.off("mensagem");
+      socket.off("connect");
     };
-  }, [salaId]);
-
-  const nomeUsuario = localStorage.getItem("nomeUsuario") || "Você";
-
-  socket.emit("registrarUsuario", nome);
-
+  }, [salaId, nomeUsuario]);
 
   function enviarMensagem() {
     if (!texto.trim()) return;

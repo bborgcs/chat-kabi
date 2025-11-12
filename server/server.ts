@@ -1,22 +1,25 @@
-import express, { Application } from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
+import express, { Application } from "express";
+import http from "http";
+import { Server } from "socket.io";
+import cors from "cors";
 
 class App {
   private app: Application;
   private httpServer: http.Server;
   private io: Server;
+  private usuarios: Map<string, string>; // armazena socket.id -> nome
 
   constructor() {
     this.app = express();
     this.httpServer = http.createServer(this.app);
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: "http://localhost:3000", // frontend React
+        origin: "http://localhost:3000",
         methods: ["GET", "POST"],
       },
     });
+
+    this.usuarios = new Map();
 
     this.middlewares();
     this.routes();
@@ -29,46 +32,45 @@ class App {
   }
 
   private routes() {
-    this.app.get('/', (req, res) => {
-      res.send('Servidor do chat em tempo real 🎧');
+    this.app.get("/", (req, res) => {
+      res.send("Servidor do chat em tempo real 🎧");
     });
   }
 
   private sockets() {
-    this.io.on('connection', (socket) => {
+    this.io.on("connection", (socket) => {
       console.log(`🟢 Cliente conectado: ${socket.id}`);
 
-      // Quando o cliente informa seu nome
+      // REGISTRO IMEDIATO DO USUÁRIO (antes de qualquer ação)
       socket.on("registrarUsuario", (nome: string) => {
-        (socket as any).nomeUsuario = nome;
-        console.log(`👤 Usuário registrado: ${nome}`);
+        if (nome && nome.trim() !== "") {
+          this.usuarios.set(socket.id, nome);
+          console.log(`👤 ${socket.id} registrado como ${nome}`);
+          socket.emit("registrado", nome); // confirma ao cliente
+        }
       });
 
-      // Entrar em uma sala
-      socket.on("entrarSala", (salaId: string) => {
+      socket.on("entrarSala", (salaId) => {
         socket.join(salaId);
         console.log(`➡️ ${socket.id} entrou na sala ${salaId}`);
       });
 
-      // Sair da sala
-      socket.on("sairSala", (salaId: string) => {
+      socket.on("sairSala", (salaId) => {
         socket.leave(salaId);
         console.log(`⬅️ ${socket.id} saiu da sala ${salaId}`);
       });
 
-      // Enviar mensagem
-      socket.on("mensagem", (data: { salaId: string; texto: string; remetente?: string }) => {
-        const nome = (socket as any).nomeUsuario || data.remetente || "Anônimo";
-        console.log(`💬 [Sala ${data.salaId}] ${nome}: ${data.texto}`);
-        this.io.to(data.salaId).emit("mensagem", {
-          remetente: nome,
-          texto: data.texto,
-        });
+      socket.on("mensagem", (data) => {
+        const { salaId, texto } = data;
+        const remetente = this.usuarios.get(socket.id) || "Anônimo";
+        console.log(`💬 [Sala ${salaId}] ${remetente}: ${texto}`);
+
+        this.io.to(salaId).emit("mensagem", { remetente, texto });
       });
 
-      // Desconexão
       socket.on("disconnect", () => {
         console.log(`🔴 Cliente desconectado: ${socket.id}`);
+        this.usuarios.delete(socket.id);
       });
     });
   }
