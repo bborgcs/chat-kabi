@@ -18,32 +18,40 @@ export default function ChatTela({ chat }) {
 
   const nomeUsuario = localStorage.getItem("nomeUsuario") || "Você";
 
+  // ✅ Registra o usuário APÓS o socket conectar
   useEffect(() => {
-    // Quando conectar, registra o nome do usuário
-    socket.on("connect", () => {
-      console.log("✅ Conectado ao servidor:", socket.id);
-    });
+    function registrarUsuario() {
+      const nome = localStorage.getItem("nomeUsuario");
+      if (nome) {
+        console.log("✅ Registrando usuário:", nome);
+        socket.emit("registrarUsuario", nome);
+      }
+    }
 
-    socket.on("connect_error", (err) => {
-      console.error("❌ Erro de conexão:", err);
-    });
+    if (socket.connected) {
+      registrarUsuario();
+    } else {
+      socket.on("connect", registrarUsuario);
+    }
 
-    const nomeUsuario = localStorage.getItem("nomeUsuario") || "Você";
-    socket.emit("registrarUsuario", nomeUsuario);
+    return () => {
+      socket.off("connect", registrarUsuario);
+    };
+  }, []);
+
+  // ✅ Entrar e sair da sala + ouvir mensagens
+  useEffect(() => {
     socket.emit("entrarSala", salaId);
 
-    
     socket.on("mensagem", (data) => {
       setMensagens((prev) => [...prev, data]);
     });
 
-    // Limpeza quando o componente sair
     return () => {
       socket.emit("sairSala", salaId);
       socket.off("mensagem");
-      socket.off("connect");
     };
-  }, [salaId, nomeUsuario]);
+  }, [salaId]);
 
   function enviarMensagem() {
     if (!texto.trim()) return;

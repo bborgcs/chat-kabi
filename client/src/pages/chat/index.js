@@ -13,6 +13,8 @@ export default function Chat() {
     return <h2>Chat não encontrado</h2>;
   }
 
+  
+
   return (
     <Container>
       <SideBar>

@@ -7,7 +7,7 @@ class App {
   private app: Application;
   private httpServer: http.Server;
   private io: Server;
-  private usuarios: Map<string, string>; // armazena socket.id -> nome
+  private usuarios: Map<string, string>;
 
   constructor() {
     this.app = express();
@@ -41,25 +41,35 @@ class App {
     this.io.on("connection", (socket) => {
       console.log(`🟢 Cliente conectado: ${socket.id}`);
 
-      // REGISTRO IMEDIATO DO USUÁRIO (antes de qualquer ação)
+      // Registro do usuário
       socket.on("registrarUsuario", (nome: string) => {
+        if (this.usuarios.has(socket.id)) {
+          console.log(`⚠️ ${socket.id} já registrado como ${this.usuarios.get(socket.id)}`);
+          return;
+        }
+
         if (nome && nome.trim() !== "") {
           this.usuarios.set(socket.id, nome);
           console.log(`👤 ${socket.id} registrado como ${nome}`);
-          socket.emit("registrado", nome); // confirma ao cliente
+          socket.emit("registrado", nome);
+        } else {
+          console.log(`⚠️ Tentativa de registro com nome inválido: '${nome}'`);
         }
       });
 
+      // Entrar em uma sala
       socket.on("entrarSala", (salaId) => {
         socket.join(salaId);
         console.log(`➡️ ${socket.id} entrou na sala ${salaId}`);
       });
 
+      // Sair de uma sala
       socket.on("sairSala", (salaId) => {
         socket.leave(salaId);
         console.log(`⬅️ ${socket.id} saiu da sala ${salaId}`);
       });
 
+      // Enviar mensagem
       socket.on("mensagem", (data) => {
         const { salaId, texto } = data;
         const remetente = this.usuarios.get(socket.id) || "Anônimo";
@@ -68,6 +78,7 @@ class App {
         this.io.to(salaId).emit("mensagem", { remetente, texto });
       });
 
+      // Desconexão
       socket.on("disconnect", () => {
         console.log(`🔴 Cliente desconectado: ${socket.id}`);
         this.usuarios.delete(socket.id);
